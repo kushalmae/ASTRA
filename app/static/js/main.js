@@ -55,9 +55,38 @@ function showError(message) {
 
 // Event table management
 const eventTable = {
+    currentPage: 1,
+    currentSortBy: 'timestamp',
+    currentSortOrder: 'desc',
+    
     init: function() {
+        // Get initial state from URL if available
+        this.parseUrlParams();
         this.bindEvents();
         this.loadEvents();
+    },
+    
+    parseUrlParams: function() {
+        const params = new URLSearchParams(window.location.search);
+        this.currentPage = parseInt(params.get('page') || '1');
+        this.currentSortBy = params.get('sort_by') || 'timestamp';
+        this.currentSortOrder = params.get('sort_order') || 'desc';
+    },
+    
+    updateUrl: function() {
+        // Update browser URL with current filter and sort state
+        const filterForm = document.getElementById('filter-form');
+        if (!filterForm) return;
+        
+        const formData = new FormData(filterForm);
+        const params = new URLSearchParams(formData);
+        
+        params.set('page', this.currentPage);
+        params.set('sort_by', this.currentSortBy);
+        params.set('sort_order', this.currentSortOrder);
+        
+        const newUrl = window.location.pathname + '?' + params.toString();
+        window.history.pushState({}, '', newUrl);
     },
     
     bindEvents: function() {
@@ -66,7 +95,8 @@ const eventTable = {
         if (filterForm) {
             filterForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                this.loadEvents(1);
+                this.currentPage = 1; // Reset to page 1 when filtering
+                this.loadEvents();
             });
         }
         
@@ -76,8 +106,8 @@ const eventTable = {
             pagination.addEventListener('click', (e) => {
                 if (e.target.tagName === 'A') {
                     e.preventDefault();
-                    const page = e.target.dataset.page;
-                    this.loadEvents(page);
+                    this.currentPage = parseInt(e.target.dataset.page);
+                    this.loadEvents();
                 }
             });
         }
@@ -87,50 +117,95 @@ const eventTable = {
         sortHeaders.forEach(header => {
             header.addEventListener('click', () => {
                 const sortBy = header.dataset.sort;
-                const currentOrder = header.dataset.order || 'asc';
+                const currentOrder = header.dataset.order || '';
                 const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
                 
                 // Update all headers
                 sortHeaders.forEach(h => h.dataset.order = '');
                 header.dataset.order = newOrder;
                 
-                this.loadEvents(1, sortBy, newOrder);
+                this.currentSortBy = sortBy;
+                this.currentSortOrder = newOrder;
+                this.loadEvents();
             });
         });
     },
     
-    loadEvents: async function(page = 1, sortBy = 'timestamp', sortOrder = 'desc') {
+    loadEvents: async function() {
         try {
             const filterForm = document.getElementById('filter-form');
+            if (!filterForm) {
+                throw new Error('Filter form not found');
+            }
+            
             const formData = new FormData(filterForm);
-            const params = new URLSearchParams(formData);
+            const params = new URLSearchParams();
             
-            params.append('page', page);
-            params.append('sort_by', sortBy);
-            params.append('sort_order', sortOrder);
+            // Add form data to params
+            for (const [key, value] of formData.entries()) {
+                if (value) { // Only add non-empty values
+                    params.append(key, value);
+                }
+            }
             
-            const data = await apiRequest(`/api/events?${params.toString()}`, {
+            // Add pagination and sorting
+            params.append('page', this.currentPage);
+            params.append('sort_by', this.currentSortBy);
+            params.append('sort_order', this.currentSortOrder);
+            
+            console.log('Fetching events with params:', params.toString());
+            
+            const response = await apiRequest(`/api/events?${params.toString()}`, {
                 loadingSelector: '#events-table'
             });
             
-            this.renderEvents(data);
-            this.renderPagination(data);
+            if (!response || !response.success) {
+                throw new Error((response && response.error) || 'Failed to load events');
+            }
+            
+            // Update current state with response data
+            const data = response.data;
+            
+            if (!data || !data.events) {
+                throw new Error('Invalid data format returned from API');
+            }
+            
+            this.renderEvents(data.events);
+            this.renderPagination(data.page, data.total_pages);
+            
+            // Update URL to reflect current state
+            this.updateUrl();
+            
         } catch (error) {
             console.error('Failed to load events:', error);
+            showError('Error loading events: ' + error.message);
         }
     },
     
-    renderEvents: function(data) {
+    renderEvents: function(events) {
         const tbody = document.querySelector('#events-table tbody');
         if (!tbody) return;
         
-        tbody.innerHTML = data.events.map(event => `
+        if (!events || events.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-4">
+                        <div class="alert alert-secondary mb-0">
+                            No events found matching your criteria
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = events.map(event => `
             <tr>
                 <td>${new Date(event.timestamp).toLocaleString()}</td>
-                <td>${event.scid}</td>
+                <td>${event.payload_name || event.scid}</td>
                 <td>${event.metric_type}</td>
-                <td>${event.value}</td>
-                <td>${event.threshold}</td>
+                <td>${Number(event.value).toFixed(2)}</td>
+                <td>${Number(event.threshold).toFixed(2)}</td>
                 <td>
                     <span class="badge bg-${event.status === 'BREACH' ? 'danger' : 'success'}">
                         ${event.status}
@@ -140,15 +215,62 @@ const eventTable = {
         `).join('');
     },
     
-    renderPagination: function(data) {
+    renderPagination: function(currentPage, totalPages) {
         const pagination = document.querySelector('.pagination');
         if (!pagination) return;
         
+        if (totalPages <= 1) {
+            pagination.innerHTML = '';
+            return;
+        }
+        
         const pages = [];
-        for (let i = 1; i <= data.total_pages; i++) {
+        
+        // Previous page button
+        if (currentPage > 1) {
             pages.push(`
-                <li class="page-item ${i === data.page ? 'active' : ''}">
-                    <a class="page-link" href="#" data-page="${i}">${i}</a>
+                <li class="page-item">
+                    <a class="page-link" href="#" data-page="${currentPage - 1}">&laquo; Previous</a>
+                </li>
+            `);
+        }
+        
+        // Page numbers
+        for (let i = 1; i <= totalPages; i++) {
+            // Show a subset of pages if there are too many
+            if (totalPages > 7) {
+                if (
+                    i === 1 || // Always show first page
+                    i === totalPages || // Always show last page
+                    (i >= currentPage - 1 && i <= currentPage + 1) // Show pages around current
+                ) {
+                    pages.push(`
+                        <li class="page-item ${i === currentPage ? 'active' : ''}">
+                            <a class="page-link" href="#" data-page="${i}">${i}</a>
+                        </li>
+                    `);
+                } else if (
+                    (i === 2 && currentPage > 3) ||
+                    (i === totalPages - 1 && currentPage < totalPages - 2)
+                ) {
+                    // Add ellipsis for skipped pages
+                    pages.push(`<li class="page-item disabled"><span class="page-link">...</span></li>`);
+                }
+            } else {
+                // Show all pages if there aren't too many
+                pages.push(`
+                    <li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" data-page="${i}">${i}</a>
+                    </li>
+                `);
+            }
+        }
+        
+        // Next page button
+        if (currentPage < totalPages) {
+            pages.push(`
+                <li class="page-item">
+                    <a class="page-link" href="#" data-page="${currentPage + 1}">Next &raquo;</a>
                 </li>
             `);
         }
@@ -159,5 +281,35 @@ const eventTable = {
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    eventTable.init();
+    // Check if we're on the events page
+    if (document.getElementById('events-table')) {
+        eventTable.init();
+    }
+    
+    // Initialize other page-specific functionality
+    if (document.getElementById('run-monitor')) {
+        // Handle manual monitor trigger
+        document.getElementById('run-monitor').addEventListener('click', async function() {
+            try {
+                loadingStates.show(this);
+                const response = await fetch('/api/monitor', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert('Monitoring completed successfully!');
+                    // Reload the page to show new data
+                    window.location.reload();
+                } else {
+                    throw new Error(data.error || 'Unknown error');
+                }
+            } catch (error) {
+                console.error('Error running monitor:', error);
+                showError('Error: ' + error.message);
+            } finally {
+                loadingStates.hide(this);
+            }
+        });
+    }
 }); 

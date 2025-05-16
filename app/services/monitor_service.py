@@ -66,6 +66,53 @@ class MonitorService:
             logger.error(f"Error checking metrics: {str(e)}", exc_info=True)
             raise
     
+    def log_monitoring_results(self, results):
+        """Log monitoring results to the database.
+        
+        Args:
+            results (list): List of monitoring results with metrics data
+            
+        Returns:
+            list: List of created events
+        """
+        try:
+            logger.info(f"Logging {len(results)} monitoring results")
+            
+            events = []
+            for result in results:
+                # Ensure we have the required fields
+                if not all(k in result for k in ['scid', 'metric_type', 'value', 'timestamp', 'threshold', 'status']):
+                    logger.warning(f"Incomplete monitoring result data: {result}")
+                    continue
+                
+                # Convert timestamp string to datetime if needed
+                timestamp = result['timestamp']
+                if isinstance(timestamp, str):
+                    try:
+                        timestamp = datetime.fromisoformat(timestamp)
+                    except ValueError:
+                        logger.error(f"Invalid timestamp format: {timestamp}")
+                        continue
+                
+                # Log to database via the db.log_trigger method
+                self.db.log_trigger(
+                    scid=result['scid'],
+                    metric_type=result['metric_type'],
+                    timestamp=timestamp,
+                    value=result['value'],
+                    threshold=result['threshold'],
+                    status=result['status']
+                )
+                
+                events.append(result)
+            
+            logger.info(f"Successfully logged {len(events)} events")
+            return events
+            
+        except Exception as e:
+            logger.error(f"Error logging monitoring results: {str(e)}", exc_info=True)
+            raise
+    
     def get_current_status(self, filters=None):
         """Get current status for all payloads and metrics."""
         try:

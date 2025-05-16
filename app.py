@@ -2,6 +2,7 @@ import os
 import time
 import threading
 import logging
+import argparse
 from flask import Flask, render_template, request, jsonify
 from app import create_app
 from app.config import Config
@@ -10,16 +11,34 @@ from app.services.matlab_interface import get_matlab
 from app.services.monitor_service import get_monitor_service
 from app.services.event_service import get_event_service
 from app.utils import get_logger
+from app.utils.logger import Logger
+
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description='ASTRA - Automated Satellite Threshold Reporting & Alerts')
+parser.add_argument('--no-logging', action='store_true', help='Disable all logging')
+args = parser.parse_args()
+
+# Load configuration
+config = Config()
+
+# Set logging status - command line overrides environment variable
+logging_enabled = not args.no_logging and config.is_logging_enabled()
+Logger.set_enabled(logging_enabled)
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("astra.log"),
-        logging.StreamHandler()
-    ]
-)
+if logging_enabled:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler("astra.log"),
+            logging.StreamHandler()
+        ]
+    )
+else:
+    # Set up a null handler for root logger if logging is disabled
+    logging.basicConfig(handlers=[logging.NullHandler()])
+
 logger = logging.getLogger(__name__)
 
 # Create application
@@ -28,9 +47,6 @@ app = create_app()
 # Create required directories
 os.makedirs("data", exist_ok=True)
 os.makedirs("matlab_scripts", exist_ok=True)
-
-# Load configuration
-config = Config()
 
 # Check if we're in simulation mode
 use_simulation = os.getenv("USE_SIMULATION", "False").lower() in ("true", "1", "yes")
@@ -96,6 +112,7 @@ if __name__ == "__main__":
     print(f"- MATLAB scripts path: {config.get_matlab_scripts_path()}")
     print(f"- Simulation mode: {'ENABLED' if use_simulation else 'DISABLED'}")
     print(f"- Refresh interval: {config.get_refresh_interval()} seconds")
+    print(f"- Logging: {'DISABLED' if not logging_enabled else 'ENABLED'}")
     print("\nAccessing the web interface:")
     print("- Dashboard: http://localhost:5000/")
     print("- Events: http://localhost:5000/events")

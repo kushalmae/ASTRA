@@ -62,6 +62,12 @@ def events():
         page, page_size = parse_pagination_params(request)
         sort_by, sort_order = parse_sort_params(request)
         
+        logger.info(f"Events page request: page={page}, sort_by={sort_by}, sort_order={sort_order}, filters={filters}")
+        
+        # Convert scid to string for consistent comparison in template
+        if 'scid' in filters:
+            filters['scid'] = str(filters['scid'])
+        
         # Get events from event service
         result = get_event_service().get_events(
             page=page,
@@ -71,8 +77,24 @@ def events():
             filters=filters
         )
         
-        # Get the list of payloads and metrics from config for filter dropdowns
+        # Enrich events with payload names for display
         payloads = config.get_payloads()
+        
+        # Convert payload scids to strings for consistent comparison
+        for payload in payloads:
+            if 'scid' in payload:
+                payload['scid'] = str(payload['scid'])
+        
+        payloads_dict = {p['scid']: p for p in payloads}
+        
+        for event in result['events']:
+            event_scid = str(event['scid'])
+            if event_scid in payloads_dict:
+                event['payload_name'] = payloads_dict[event_scid]['name']
+            else:
+                event['payload_name'] = f"Unknown ({event_scid})"
+        
+        # Get the list of metrics from config for filter dropdowns
         metrics = config.get_metrics()
         
         return render_template('events.html',
@@ -87,4 +109,5 @@ def events():
                              sort_by=sort_by,
                              sort_order=sort_order)
     except Exception as e:
+        logger.error(f"Error in events route: {str(e)}", exc_info=True)
         return handle_error(e) 

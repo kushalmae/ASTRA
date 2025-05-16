@@ -2,7 +2,8 @@
   "metrics": {
     "thermal": {"threshold": 75.0},
     "voltage": {"threshold": 3.3},
-    "latency": {"threshold": 250}
+    "latency": {"threshold": 250},
+    "test2": {"threshold": 250}
   },
   "payloads": [
     {"scid": 101, "name": "Payload 1"},

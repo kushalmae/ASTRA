@@ -1,10 +1,12 @@
 from flask import Blueprint, jsonify, request
 from app.services import get_event_service, get_monitor_service
 from app.utils import get_logger
+from app.utils.logger import Logger
 from .utils import (
     get_matlab, parse_filter_params, parse_pagination_params,
     parse_sort_params, handle_error, validate_required_params
 )
+from app.config import Config
 
 # Initialize logger
 logger = get_logger('api')
@@ -33,6 +35,35 @@ def run_monitor():
     except Exception as e:
         return handle_error(e)
 
+@api_bp.route('/toggle_logging', methods=['POST'])
+def toggle_logging():
+    """Toggle application logging on or off."""
+    try:
+        # Get current status
+        current_status = Logger.is_enabled()
+        
+        # Check if a specific state was requested
+        if request.json and 'enabled' in request.json:
+            # Set to the requested state
+            new_status = bool(request.json['enabled'])
+        else:
+            # Toggle current status
+            new_status = not current_status
+            
+        # Update the logging status
+        Logger.set_enabled(new_status)
+        
+        message = f"Logging has been {'enabled' if new_status else 'disabled'}"
+        logger.info(message)  # This will only log if logging is now enabled
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'logging_enabled': new_status
+        })
+    except Exception as e:
+        return handle_error(e)
+
 @api_bp.route('/events')
 def get_events():
     """Get events in JSON format."""
@@ -41,6 +72,8 @@ def get_events():
         filters = parse_filter_params(request)
         page, page_size = parse_pagination_params(request)
         sort_by, sort_order = parse_sort_params(request)
+        
+        logger.info(f"API events request: page={page}, sort_by={sort_by}, sort_order={sort_order}, filters={filters}")
         
         # Get events from event service
         result = get_event_service().get_events(
@@ -51,6 +84,13 @@ def get_events():
             filters=filters
         )
         
+        # Map payload IDs to names for better display
+        payloads = {str(p['scid']): p['name'] for p in Config().get_payloads()}
+        
+        # Enrich event data with payload names
+        for event in result['events']:
+            event['payload_name'] = payloads.get(str(event['scid']), f"Unknown ({event['scid']})")
+        
         return jsonify({
             'success': True,
             'data': {
@@ -58,10 +98,13 @@ def get_events():
                 'total_pages': result['total_pages'],
                 'total_count': result['total_count'],
                 'page': page,
-                'page_size': page_size
+                'page_size': page_size,
+                'sort_by': sort_by,
+                'sort_order': sort_order
             }
         })
     except Exception as e:
+        logger.error(f"Error fetching events: {str(e)}", exc_info=True)
         return handle_error(e)
 
 @api_bp.route('/breach_history')

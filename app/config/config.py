@@ -63,4 +63,15 @@ class Config:
     
     def get_database_path(self):
         """Get the database path from environment variables."""
-        return os.getenv("DATABASE_PATH", "./data/astra.db") 
+        return os.getenv("DATABASE_PATH", "./data/astra.db")
+        
+    def is_logging_enabled(self):
+        """Determine if logging is enabled from environment variables.
+        
+        This can be used to disable all logging in the application by setting
+        the LOGGING_ENABLED environment variable to 'False', '0', or 'no'.
+        
+        Returns:
+            bool: True if logging is enabled, False otherwise.
+        """
+        return os.getenv("LOGGING_ENABLED", "True").lower() not in ("false", "0", "no") 

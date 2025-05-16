@@ -28,18 +28,25 @@ def parse_filter_params(request):
     
     # Parse numeric filters
     if request.args.get('scid'):
-        filters['scid'] = int(request.args.get('scid'))
+        try:
+            filters['scid'] = int(request.args.get('scid'))
+            logger.debug(f"Parsed scid filter: {filters['scid']} (type: {type(filters['scid']).__name__})")
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Invalid scid value: {request.args.get('scid')} - {str(e)}")
+            # Don't add invalid scid to filters
     
     # Parse string filters
     for param in ['metric_type', 'status']:
         if request.args.get(param):
             filters[param] = request.args.get(param)
+            logger.debug(f"Parsed {param} filter: {filters[param]}")
     
     # Parse date filters
     default_from_date, default_to_date = get_default_date_range()
     filters['date_from'] = request.args.get('date_from', default_from_date)
     filters['date_to'] = request.args.get('date_to', default_to_date)
     
+    logger.info(f"Parsed filters: {filters}")
     return filters
 
 def parse_pagination_params(request):

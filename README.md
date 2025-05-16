@@ -1,5 +1,7 @@
 # ASTRA - Automated Satellite Threshold Reporting & Alerts
 
+Code tutorial - https://code2tutorial.com/tutorial/c96510f4-7bb6-40e6-99e2-768004663b8e/index.md
+
 ASTRA is a web application for monitoring satellite payload metrics and alerting on threshold breaches.
 
 ## Features

@@ -2,14 +2,49 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
+from app.config import Config
+
+# Special null handler that does nothing
+class NullHandler(logging.Handler):
+    def emit(self, record):
+        pass
 
 class Logger:
     """Centralized logging utility for the ASTRA application."""
     
+    # Class variable to track global logging state
+    _logging_enabled = True
+    
+    @classmethod
+    def set_enabled(cls, enabled):
+        """Enable or disable all logging globally.
+        
+        Args:
+            enabled (bool): Whether logging should be enabled
+        """
+        cls._logging_enabled = enabled
+        
+    @classmethod
+    def is_enabled(cls):
+        """Check if logging is enabled globally.
+        
+        Returns:
+            bool: True if logging is enabled, False otherwise
+        """
+        # Check both the class variable and the config setting
+        config = Config()
+        return cls._logging_enabled and config.is_logging_enabled()
+    
     def __init__(self, name='astra'):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.INFO)
+        self.name = name
         
+        # Always configure handlers on init, but they may be disabled later
+        self._configure_handlers()
+        
+    def _configure_handlers(self):
+        """Configure and set up all handlers for the logger."""
         # Create logs directory if it doesn't exist
         if not os.path.exists('logs'):
             os.makedirs('logs')
@@ -50,30 +85,45 @@ class Logger:
         error_handler.setFormatter(error_formatter)
         console_handler.setFormatter(file_formatter)
         
+        # Remove any existing handlers
+        for handler in self.logger.handlers[:]:
+            self.logger.removeHandler(handler)
+        
         # Add the handlers to the logger
         self.logger.addHandler(file_handler)
         self.logger.addHandler(error_handler)
         self.logger.addHandler(console_handler)
     
+    def _log_if_enabled(self, level, message, **kwargs):
+        """Only log if logging is enabled.
+        
+        Args:
+            level: The logging level method to call
+            message: The message to log
+            **kwargs: Additional arguments to pass to the logging method
+        """
+        if self.is_enabled():
+            level(message, **kwargs)
+    
     def info(self, message):
         """Log an info message."""
-        self.logger.info(message)
+        self._log_if_enabled(self.logger.info, message)
     
     def error(self, message, exc_info=None):
         """Log an error message with optional exception info."""
-        self.logger.error(message, exc_info=exc_info)
+        self._log_if_enabled(self.logger.error, message, exc_info=exc_info)
     
     def warning(self, message):
         """Log a warning message."""
-        self.logger.warning(message)
+        self._log_if_enabled(self.logger.warning, message)
     
     def debug(self, message):
         """Log a debug message."""
-        self.logger.debug(message)
+        self._log_if_enabled(self.logger.debug, message)
     
     def critical(self, message, exc_info=None):
         """Log a critical message with optional exception info."""
-        self.logger.critical(message, exc_info=exc_info)
+        self._log_if_enabled(self.logger.critical, message, exc_info=exc_info)
 
 # Create a singleton instance for the main application
 main_logger = Logger()
