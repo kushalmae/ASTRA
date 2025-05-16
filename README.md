@@ -1,119 +1,127 @@
 # ASTRA - Automated Satellite Threshold Reporting & Alerts
 
-A scalable, configuration-driven web application that monitors MATLAB-based metrics for a constellation of satellite payloads. When thresholds are breached, the system logs the events in a database and displays real-time insights through a Flask-based dashboard.
+ASTRA is a web application for monitoring satellite payload metrics and alerting on threshold breaches.
 
 ## Features
 
-- Configuration-driven architecture - easily add new metrics and thresholds
-- Real-time monitoring of metrics for 10 satellite payloads
-- Dashboard with visual indicators of breaches
-- Detailed event table with filtering and sorting capabilities
-- SQLite database for persistent storage
-- Simulated MATLAB integration (can be replaced with actual MATLAB scripts)
+- Real-time monitoring of satellite payload metrics
+- Configurable thresholds for different metric types
+- Dashboard with current status and breach history
+- Detailed event history with filtering and sorting
+- API endpoints for integration with other systems
+
+## Project Structure
+
+```
+astra/
+├── app/
+│   ├── api/            # API endpoints
+│   ├── models/         # Database models
+│   ├── services/       # Business logic
+│   ├── templates/      # HTML templates
+│   ├── utils/          # Utility functions
+│   └── views/          # View functions
+├── config/             # Configuration files
+├── logs/               # Application logs
+├── tests/              # Test files
+└── requirements/       # Python dependencies
+```
 
 ## Installation
 
 1. Clone the repository:
-```
-git clone https://github.com/yourusername/ASTRA.git
-cd ASTRA
-```
+   ```bash
+   git clone https://github.com/yourusername/astra.git
+   cd astra
+   ```
 
-2. Create a virtual environment and activate it:
-```
-python -m venv venv
-# On Windows
-venv\Scripts\activate
-# On Unix or MacOS
-source venv/bin/activate
-```
+2. Create a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
 
-3. Install the required dependencies:
-```
-pip install -r requirements.txt
-```
+3. Install dependencies:
+   ```bash
+   # For development
+   pip install -r requirements/dev.txt
+   
+   # For production
+   pip install -r requirements/prod.txt
+   ```
+
+4. Initialize the database:
+   ```bash
+   flask db upgrade
+   ```
+
+5. Run the application:
+   ```bash
+   # Development
+   flask run
+   
+   # Production
+   gunicorn "app:create_app()"
+   ```
 
 ## Configuration
 
-The application is configured through the `config/metrics_config.json` file. This file defines the metrics and thresholds for monitoring. 
+The application can be configured using environment variables or a `.env` file:
 
-Example:
-```json
-{
-  "metrics": {
-    "thermal": {"threshold": 75.0},
-    "voltage": {"threshold": 3.3},
-    "latency": {"threshold": 250}
-  },
-  "payloads": [
-    {"scid": 101, "name": "Payload 1"},
-    {"scid": 102, "name": "Payload 2"},
-    ...
-  ]
-}
+- `FLASK_ENV`: Environment (development/production)
+- `DATABASE_URL`: Database connection URL
+- `SECRET_KEY`: Application secret key
+- `LOG_LEVEL`: Logging level (DEBUG/INFO/WARNING/ERROR)
+
+## API Documentation
+
+### Events API
+
+- `GET /api/events`: Get paginated events with filtering
+- `GET /api/breach_history`: Get breach history for a specific payload and metric
+
+### Monitor API
+
+- `POST /api/monitor`: Submit new metric data for monitoring
+
+## Development
+
+### Running Tests
+
+```bash
+pytest
 ```
 
-### Environment Variables
+### Code Quality
 
-The application can be configured using environment variables or an `.env` file. Copy `env.example` to `.env` and modify as needed:
+```bash
+# Format code
+black .
+isort .
 
-```
-# Path to MATLAB scripts folder
-MATLAB_SCRIPTS_PATH=./matlab_scripts
-
-# Refresh interval for monitoring, in seconds
-REFRESH_INTERVAL=600
-
-# Database path
-DATABASE_PATH=./data/astra.db
-
-# Use simulation mode instead of real MATLAB
-USE_SIMULATION=True
+# Check code quality
+flake8
+mypy .
 ```
 
-Setting `USE_SIMULATION=True` will use the built-in simulator instead of trying to run real MATLAB scripts.
+### Database Migrations
 
-## Running the Application
+```bash
+# Create a new migration
+flask db migrate -m "Description"
 
-Simply run:
+# Apply migrations
+flask db upgrade
 ```
-python app.py
-```
 
-The application will start a Flask web server on http://localhost:5000 and a background thread that simulates MATLAB script execution at regular intervals.
+## Contributing
 
-## MATLAB Integration
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
-The current implementation simulates MATLAB script execution for testing purposes. To integrate with actual MATLAB scripts:
+## License
 
-1. Place your MATLAB scripts in the `matlab_scripts` directory
-2. Update the `app/matlab_interface.py` file to call your scripts using the MATLAB Engine API or `subprocess`
-
-## Project Structure
-
-- `app/` - Main application package
-  - `__init__.py` - Flask application initialization
-  - `config.py` - Configuration handling
-  - `database.py` - Database operations
-  - `matlab_interface.py` - MATLAB script interface
-  - `routes.py` - Flask routes for the web interface
-  - `static/` - Static files (CSS, JS)
-  - `templates/` - Jinja2 templates
-- `config/` - Configuration files
-- `data/` - Database files
-- `matlab_scripts/` - MATLAB scripts
-- `app.py` - Application entry point
-
-## Troubleshooting
-
-### SQLite Threading Issues
-
-The application is designed to handle SQLite's thread safety requirements. Each thread (main Flask thread, background monitoring thread, and request handling threads) has its own dedicated database connection to avoid the "SQLite objects created in a thread can only be used in that same thread" error.
-
-### MATLAB Integration Issues
-
-If you encounter issues with MATLAB integration:
-
-1. Make sure MATLAB is installed and accessible from the command line
-2. Verify the MATLAB scripts in the `matlab_scripts` directory are working correctly
-3. Try setting `USE_SIMULATION=True` in your `.env` file to bypass MATLAB and use simulated data
+This project is licensed under the MIT License - see the LICENSE file for details.

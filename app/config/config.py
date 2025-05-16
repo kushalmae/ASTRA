@@ -30,7 +30,9 @@ class Config:
                     "latency": {"threshold": 250}
                 },
                 "payloads": [
-                    {"scid": 101, "name": "Payload 1"}
+                    {"scid": 101, "name": "Payload 1"},
+                    {"scid": 102, "name": "Payload 2"},
+                    {"scid": 103, "name": "Payload 3"}
                 ]
             }
     

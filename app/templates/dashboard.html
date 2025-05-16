@@ -55,10 +55,10 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for metric_name in metrics %}
+                            {% for metric_name, metric_config in metrics.items() %}
                             <tr>
                                 <td class="fw-bold">{{ metric_name|capitalize }}</td>
-                                <td>{{ metrics[metric_name].threshold }}</td>
+                                <td>{{ metric_config.threshold }}</td>
                                 {% for scid, payload_data in dashboard_data.items() %}
                                 {% set metric_data = payload_data.metrics.get(metric_name, {}) %}
                                 {% set count = metric_data.get('count', 0) %}
@@ -66,9 +66,7 @@
                                 <td class="text-center {% if status == 'BREACH' %}bg-danger text-white{% else %}bg-success text-white{% endif %} clickable-cell"
                                     data-scid="{{ scid }}" 
                                     data-metric="{{ metric_name }}" 
-                                    data-count="{{ count }}"
-                                    data-toggle="modal" 
-                                    data-target="#breachModal">
+                                    data-count="{{ count }}">
                                     {{ count }}
                                 </td>
                                 {% endfor %}
@@ -101,8 +99,6 @@
                 <div class="row mt-3">
                     <div class="col-12 text-center">
                         <a id="viewEventsLink" href="{{ url_for('main.events') }}" 
-                           data-date-from="{{ date_from }}" 
-                           data-date-to="{{ date_to }}"
                            class="btn btn-primary">View Full Event History</a>
                     </div>
                 </div>
@@ -229,107 +225,123 @@
         // Breach history chart (initialized empty)
         var breachHistoryChart;
         
+        // Initialize the modal
+        var breachModal = new bootstrap.Modal(document.getElementById('breachModal'));
+        
         // Handle cell clicks
         document.querySelectorAll('.clickable-cell').forEach(function(cell) {
             cell.addEventListener('click', function() {
-                var scid = this.getAttribute('data-scid');
-                var metric = this.getAttribute('data-metric');
-                var count = this.getAttribute('data-count');
+                var scid = this.dataset.scid;
+                var metric = this.dataset.metric;
+                var count = parseInt(this.dataset.count);
                 
                 // Update modal title
                 document.getElementById('breachModalLabel').textContent = 
-                    metric.charAt(0).toUpperCase() + metric.slice(1) + 
-                    ' Breach History - Payload ' + scid;
+                    `Breach History - ${metric.charAt(0).toUpperCase() + metric.slice(1)} (SCID: ${scid})`;
                 
-                // Update the link to events page with date filter
-                var eventsLink = document.getElementById('viewEventsLink');
-                var dateFrom = eventsLink.getAttribute('data-date-from');
-                var dateTo = eventsLink.getAttribute('data-date-to');
-                eventsLink.href = eventsLink.href.split('?')[0] + '?scid=' + scid +
-                    '&metric_type=' + metric +
-                    '&date_from=' + dateFrom +
-                    '&date_to=' + dateTo;
+                // Update view events link
+                var viewEventsLink = document.getElementById('viewEventsLink');
+                viewEventsLink.href = `/events?scid=${scid}&metric_type=${metric}&date_from={{ date_from }}&date_to={{ date_to }}`;
                 
-                // Fetch real breach history data with error logging
-                fetch(`/api/breach_history?scid=${scid}&metric_type=${metric}&date_from=${dateFrom}&date_to=${dateTo}`)
+                // Show the modal first
+                breachModal.show();
+                
+                // Clear previous chart if it exists
+                if (breachHistoryChart) {
+                    breachHistoryChart.destroy();
+                    breachHistoryChart = null;
+                }
+                
+                // Don't fetch if there are no breaches
+                if (count === 0) {
+                    // Display a message in the chart area
+                    var ctx = document.getElementById('breachHistoryChart').getContext('2d');
+                    ctx.font = '16px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('No breach data available for the selected period', ctx.canvas.width/2, ctx.canvas.height/2);
+                    return;
+                }
+                
+                // Fetch breach history data
+                fetch(`/api/breach_history?scid=${scid}&metric_type=${metric}&date_from={{ date_from }}&date_to={{ date_to }}`)
                     .then(response => {
-                        if (!response.ok) {
-                            console.error('API response not ok:', response.status, response.statusText);
-                        }
+                        console.log('Response status:', response.status);
                         return response.json();
                     })
-                    .then(history => {
-                        console.log('Breach history data:', history);
-                        var labels = history.map(item => item.day);
-                        var data = history.map(item => item.count);
-
-                        // Destroy previous chart if it exists and is a Chart instance
-                        if (window.breachHistoryChart && typeof window.breachHistoryChart.destroy === 'function') {
-                            window.breachHistoryChart.destroy();
-                        } else if (window.breachHistoryChart) {
-                            console.warn('breachHistoryChart exists but has no destroy method:', window.breachHistoryChart);
+                    .then(data => {
+                        console.log('Breach history data:', data);
+                        
+                        if (!data.success) {
+                            throw new Error(data.message || 'Failed to fetch breach history');
                         }
-
-                        // Create new breach history chart
-                        var ctxHistory = document.getElementById('breachHistoryChart').getContext('2d');
-                        window.breachHistoryChart = new Chart(ctxHistory, {
+                        
+                        if (!data.data || !data.data.length) {
+                            throw new Error('No breach data available');
+                        }
+                        
+                        // Create new chart
+                        var ctx = document.getElementById('breachHistoryChart').getContext('2d');
+                        breachHistoryChart = new Chart(ctx, {
                             type: 'line',
                             data: {
-                                labels: labels,
+                                labels: data.data.map(item => new Date(item.timestamp)),
                                 datasets: [{
-                                    label: 'Daily Breaches',
-                                    data: data,
-                                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                    label: 'Value',
+                                    data: data.data.map(item => item.value),
                                     borderColor: 'rgba(255, 99, 132, 1)',
-                                    borderWidth: 2,
-                                    tension: 0.1,
+                                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
                                     fill: true
+                                }, {
+                                    label: 'Threshold',
+                                    data: data.data.map(item => item.threshold),
+                                    borderColor: 'rgba(54, 162, 235, 1)',
+                                    borderDash: [5, 5],
+                                    fill: false
                                 }]
                             },
                             options: {
                                 responsive: true,
                                 maintainAspectRatio: false,
                                 plugins: {
+                                    legend: {
+                                        position: 'top',
+                                    },
                                     title: {
                                         display: true,
-                                        text: 'Daily Breach History (Last 7 Days)'
+                                        text: 'Value vs Threshold Over Time'
                                     }
                                 },
                                 scales: {
                                     x: {
                                         type: 'time',
                                         time: {
-                                            unit: 'day',
-                                            displayFormats: {
-                                                day: 'MMM dd'
-                                            }
+                                            unit: 'hour'
                                         },
                                         title: {
                                             display: true,
-                                            text: 'Date'
+                                            text: 'Time'
                                         }
                                     },
                                     y: {
-                                        beginAtZero: true,
                                         title: {
                                             display: true,
-                                            text: 'Breach Count'
-                                        },
-                                        ticks: {
-                                            precision: 0,
-                                            stepSize: 1
+                                            text: 'Value'
                                         }
                                     }
                                 }
                             }
                         });
-
-                        // Show the modal
-                        var modal = new bootstrap.Modal(document.getElementById('breachModal'));
-                        modal.show();
                     })
                     .catch(error => {
                         console.error('Error fetching or rendering breach history:', error);
+                        
+                        // Display error message in the chart area
+                        var ctx = document.getElementById('breachHistoryChart').getContext('2d');
+                        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                        ctx.font = '16px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillStyle = 'red';
+                        ctx.fillText('Error: ' + error.message, ctx.canvas.width/2, ctx.canvas.height/2);
                     });
             });
         });

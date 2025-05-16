@@ -1,42 +1,38 @@
-from flask import Flask, g
-from app.config import Config
+"""Application factory module."""
 
-def create_app():
+from flask import Flask
+from app.config.config import Config
+from app.database import get_db
+from app.routes.main import main_bp
+from app.routes.api import api_bp
+from app.utils import get_logger
+from app.config.cache import cache, init_cache
+
+# Initialize logger
+logger = get_logger('app')
+
+def create_app(config_class=Config):
     """Create and configure the Flask application."""
     app = Flask(__name__)
     
     # Load configuration
-    config = Config()
-    app.config['DATABASE_PATH'] = config.get_database_path()
+    app.config.from_object(config_class)
     
-    # Add custom template filters
-    @app.template_filter('min')
-    def min_filter(*args):
-        """Return the minimum value from the arguments.
-        This filter can handle both individual values or a list/array.
-        """
-        if len(args) == 1 and isinstance(args[0], list):
-            return min(args[0])
-        return min(args)
+    # Initialize database
+    db = get_db()
+    db.init_app()
     
-    @app.template_filter('max')
-    def max_filter(*args):
-        """Return the maximum value from the arguments.
-        This filter can handle both individual values or a list/array.
-        """
-        if len(args) == 1 and isinstance(args[0], list):
-            return max(args[0])
-        return max(args)
+    # Initialize cache with app
+    init_cache(app)
     
     # Register blueprints
-    from app.routes import main_bp
     app.register_blueprint(main_bp)
+    app.register_blueprint(api_bp, url_prefix='/api')
     
+    # Register teardown function to close database resources
     @app.teardown_appcontext
-    def close_resources(error):
-        """Ensure all resources are closed when the request ends."""
-        db = g.pop('db', None)
-        if db is not None:
-            db.close()
+    def cleanup(exception=None):
+        db = get_db()
+        db.close_session()
     
     return app 

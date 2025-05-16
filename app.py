@@ -2,10 +2,14 @@ import os
 import time
 import threading
 import logging
+from flask import Flask, render_template, request, jsonify
 from app import create_app
 from app.config import Config
-from app.database import Database
-from app.matlab_interface import MatlabInterface
+from app.database import get_db
+from app.services.matlab_interface import get_matlab
+from app.services.monitor_service import get_monitor_service
+from app.services.event_service import get_event_service
+from app.utils import get_logger
 
 # Configure logging
 logging.basicConfig(
@@ -36,17 +40,13 @@ if use_simulation:
 else:
     logger.info("MATLAB integration enabled - will attempt to execute MATLAB scripts if present")
 
-# Create database and MATLAB interface instances
-# Note: We'll create a separate database instance for the monitoring thread
-db = Database(config.get_database_path())
-matlab = MatlabInterface(config)
+# Get database and MATLAB interface instances
+db = get_db()
+matlab = get_matlab()
 
 def monitor_metrics():
     """Background thread to monitor satellite metrics at regular intervals."""
     logger.info("Starting background monitoring thread")
-    
-    # Create a separate database instance for this thread
-    monitor_db = Database(config.get_database_path())
     
     while True:
         try:
@@ -55,7 +55,7 @@ def monitor_metrics():
             
             # Log results to database
             for result in results:
-                monitor_db.log_trigger(
+                db.log_trigger(
                     scid=result["scid"],
                     metric_type=result["metric_type"],
                     timestamp=result["timestamp"],
@@ -72,6 +72,16 @@ def monitor_metrics():
         interval = config.get_refresh_interval()
         logger.info(f"Sleeping for {interval} seconds until next check")
         time.sleep(interval)
+
+@app.route('/')
+def index():
+    """Render the dashboard page."""
+    return render_template('dashboard.html')
+
+@app.route('/events')
+def events():
+    """Render the events page."""
+    return render_template('events.html')
 
 if __name__ == "__main__":
     # Start the background monitoring thread
