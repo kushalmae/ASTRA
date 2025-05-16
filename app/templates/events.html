@@ -1,0 +1,282 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1>Trigger Events</h1>
+        <p class="lead">View and filter all threshold breach events</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Filters</h5>
+            </div>
+            <div class="card-body">
+                <form method="get" action="{{ url_for('main.events') }}" class="row g-3">
+                    <div class="col-md-3">
+                        <label for="scid" class="form-label">Payload (SCID)</label>
+                        <select name="scid" id="scid" class="form-select">
+                            <option value="">All Payloads</option>
+                            {% for payload in payloads %}
+                            <option value="{{ payload.scid }}" {% if filters.get('scid') == payload.scid %}selected{% endif %}>
+                                {{ payload.name }} ({{ payload.scid }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="metric_type" class="form-label">Metric Type</label>
+                        <select name="metric_type" id="metric_type" class="form-select">
+                            <option value="">All Metrics</option>
+                            {% for metric_name in metrics %}
+                            <option value="{{ metric_name }}" {% if filters.get('metric_type') == metric_name %}selected{% endif %}>
+                                {{ metric_name|capitalize }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="status" class="form-label">Status</label>
+                        <select name="status" id="status" class="form-select">
+                            <option value="">All Statuses</option>
+                            <option value="BREACH" {% if filters.get('status') == 'BREACH' %}selected{% endif %}>BREACH</option>
+                            <option value="NORMAL" {% if filters.get('status') == 'NORMAL' %}selected{% endif %}>NORMAL</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="sort_by" class="form-label">Sort By</label>
+                        <select name="sort_by" id="sort_by" class="form-select">
+                            <option value="timestamp" {% if sort_by == 'timestamp' %}selected{% endif %}>Timestamp</option>
+                            <option value="scid" {% if sort_by == 'scid' %}selected{% endif %}>SCID</option>
+                            <option value="metric_type" {% if sort_by == 'metric_type' %}selected{% endif %}>Metric Type</option>
+                            <option value="value" {% if sort_by == 'value' %}selected{% endif %}>Value</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="date_from" class="form-label">Date From</label>
+                        <input type="date" class="form-control" id="date_from" name="date_from" value="{{ filters.get('date_from', '') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="date_to" class="form-label">Date To</label>
+                        <input type="date" class="form-control" id="date_to" name="date_to" value="{{ filters.get('date_to', '') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="page_size" class="form-label">Records Per Page</label>
+                        <select name="page_size" id="page_size" class="form-select">
+                            <option value="25" {% if page_size == 25 %}selected{% endif %}>25</option>
+                            <option value="50" {% if page_size == 50 %}selected{% endif %}>50</option>
+                            <option value="100" {% if page_size == 100 %}selected{% endif %}>100</option>
+                            <option value="200" {% if page_size == 200 %}selected{% endif %}>200</option>
+                            <option value="500" {% if page_size == 500 %}selected{% endif %}>500</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="hidden" name="sort_order" value="{{ 'ASC' if sort_order == 'DESC' else 'DESC' }}">
+                        <div class="d-flex h-100 align-items-end">
+                            <button type="submit" class="btn btn-primary me-2">Apply Filters</button>
+                            <a href="{{ url_for('main.events') }}" class="btn btn-secondary">Clear Filters</a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Events</h5>
+                <span class="badge bg-primary">{{ total_count }} events</span>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>
+                                    <a href="{{ url_for('main.events', scid=filters.get('scid'), 
+                                       metric_type=filters.get('metric_type'), status=filters.get('status'),
+                                       date_from=filters.get('date_from'), date_to=filters.get('date_to'),
+                                       sort_by='timestamp', page_size=page_size,
+                                       sort_order='ASC' if sort_by == 'timestamp' and sort_order == 'DESC' else 'DESC') }}" class="text-white text-decoration-none">
+                                        Timestamp
+                                        {% if sort_by == 'timestamp' %}
+                                            {% if sort_order == 'DESC' %}
+                                            <i class="bi bi-arrow-down"></i>
+                                            {% else %}
+                                            <i class="bi bi-arrow-up"></i>
+                                            {% endif %}
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('main.events', scid=filters.get('scid'), 
+                                       metric_type=filters.get('metric_type'), status=filters.get('status'),
+                                       date_from=filters.get('date_from'), date_to=filters.get('date_to'),
+                                       sort_by='scid', page_size=page_size,
+                                       sort_order='ASC' if sort_by == 'scid' and sort_order == 'DESC' else 'DESC') }}" class="text-white text-decoration-none">
+                                        SCID
+                                        {% if sort_by == 'scid' %}
+                                            {% if sort_order == 'DESC' %}
+                                            <i class="bi bi-arrow-down"></i>
+                                            {% else %}
+                                            <i class="bi bi-arrow-up"></i>
+                                            {% endif %}
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('main.events', scid=filters.get('scid'), 
+                                       metric_type=filters.get('metric_type'), status=filters.get('status'),
+                                       date_from=filters.get('date_from'), date_to=filters.get('date_to'),
+                                       sort_by='metric_type', page_size=page_size,
+                                       sort_order='ASC' if sort_by == 'metric_type' and sort_order == 'DESC' else 'DESC') }}" class="text-white text-decoration-none">
+                                        Metric Type
+                                        {% if sort_by == 'metric_type' %}
+                                            {% if sort_order == 'DESC' %}
+                                            <i class="bi bi-arrow-down"></i>
+                                            {% else %}
+                                            <i class="bi bi-arrow-up"></i>
+                                            {% endif %}
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ url_for('main.events', scid=filters.get('scid'), 
+                                       metric_type=filters.get('metric_type'), status=filters.get('status'),
+                                       date_from=filters.get('date_from'), date_to=filters.get('date_to'),
+                                       sort_by='value', page_size=page_size,
+                                       sort_order='ASC' if sort_by == 'value' and sort_order == 'DESC' else 'DESC') }}" class="text-white text-decoration-none">
+                                        Value
+                                        {% if sort_by == 'value' %}
+                                            {% if sort_order == 'DESC' %}
+                                            <i class="bi bi-arrow-down"></i>
+                                            {% else %}
+                                            <i class="bi bi-arrow-up"></i>
+                                            {% endif %}
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                <th class="text-white">Threshold</th>
+                                <th class="text-white">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for event in events %}
+                            <tr>
+                                <td>{{ event.timestamp }}</td>
+                                <td>{{ event.scid }}</td>
+                                <td>{{ event.metric_type|capitalize }}</td>
+                                <td>{{ event.value }}</td>
+                                <td>{{ event.threshold }}</td>
+                                <td class="{% if event.status == 'BREACH' %}table-danger{% else %}table-success{% endif %}">
+                                    {% if event.status == 'BREACH' %}
+                                    <span class="badge bg-danger">BREACH</span>
+                                    {% else %}
+                                    <span class="badge bg-success">NORMAL</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center">No events found</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% if total_pages > 1 %}
+            <div class="card-footer">
+                <nav aria-label="Page navigation">
+                    <ul class="pagination pagination-sm flex-wrap justify-content-center">
+                        <!-- Previous Button -->
+                        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('main.events', scid=filters.get('scid'), 
+                               metric_type=filters.get('metric_type'), status=filters.get('status'),
+                               date_from=filters.get('date_from'), date_to=filters.get('date_to'),
+                               sort_by=sort_by, sort_order=sort_order, page=page-1, page_size=page_size) }}" aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        
+                        <!-- First Page -->
+                        {% if page > 3 %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('main.events', scid=filters.get('scid'), 
+                               metric_type=filters.get('metric_type'), status=filters.get('status'),
+                               date_from=filters.get('date_from'), date_to=filters.get('date_to'),
+                               sort_by=sort_by, sort_order=sort_order, page=1, page_size=page_size) }}">1</a>
+                        </li>
+                        
+                        <!-- First Ellipsis -->
+                        {% if page > 4 %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                        {% endif %}
+                        {% endif %}
+                        
+                        <!-- Page Numbers -->
+                        {% set start_page = [page - 2, 1]|max %}
+                        {% set end_page = [page + 2, total_pages]|min %}
+                        
+                        {% if start_page > 1 and page < 4 %}
+                            {% set end_page = 5 %}
+                        {% endif %}
+                        
+                        {% if end_page < total_pages and page > total_pages - 3 %}
+                            {% set start_page = total_pages - 4 %}
+                        {% endif %}
+                        
+                        {% for p in range(start_page, end_page + 1) %}
+                        <li class="page-item {% if p == page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('main.events', scid=filters.get('scid'), 
+                               metric_type=filters.get('metric_type'), status=filters.get('status'),
+                               date_from=filters.get('date_from'), date_to=filters.get('date_to'),
+                               sort_by=sort_by, sort_order=sort_order, page=p, page_size=page_size) }}">{{ p }}</a>
+                        </li>
+                        {% endfor %}
+                        
+                        <!-- Last Ellipsis -->
+                        {% if page < total_pages - 3 %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                        {% endif %}
+                        
+                        <!-- Last Page -->
+                        {% if page < total_pages - 2 %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('main.events', scid=filters.get('scid'), 
+                               metric_type=filters.get('metric_type'), status=filters.get('status'),
+                               date_from=filters.get('date_from'), date_to=filters.get('date_to'),
+                               sort_by=sort_by, sort_order=sort_order, page=total_pages, page_size=page_size) }}">{{ total_pages }}</a>
+                        </li>
+                        {% endif %}
+                        
+                        <!-- Next Button -->
+                        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('main.events', scid=filters.get('scid'), 
+                               metric_type=filters.get('metric_type'), status=filters.get('status'),
+                               date_from=filters.get('date_from'), date_to=filters.get('date_to'),
+                               sort_by=sort_by, sort_order=sort_order, page=page+1, page_size=page_size) }}" aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+                <div class="text-center mt-2">
+                    <span class="badge bg-secondary">Showing {{ (page-1)*page_size + 1 }} to {% if page*page_size < total_count %}{{ page*page_size }}{% else %}{{ total_count }}{% endif %} of {{ total_count }} records</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

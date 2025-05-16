@@ -1,0 +1,19 @@
+{
+  "metrics": {
+    "thermal": {"threshold": 75.0},
+    "voltage": {"threshold": 3.3},
+    "latency": {"threshold": 250}
+  },
+  "payloads": [
+    {"scid": 101, "name": "Payload 1"},
+    {"scid": 102, "name": "Payload 2"},
+    {"scid": 103, "name": "Payload 3"},
+    {"scid": 104, "name": "Payload 4"},
+    {"scid": 105, "name": "Payload 5"},
+    {"scid": 106, "name": "Payload 6"},
+    {"scid": 107, "name": "Payload 7"},
+    {"scid": 108, "name": "Payload 8"},
+    {"scid": 109, "name": "Payload 9"},
+    {"scid": 110, "name": "Payload 10"}
+  ]
+} 

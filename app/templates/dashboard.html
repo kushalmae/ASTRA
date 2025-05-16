@@ -1,0 +1,338 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1>Satellite Metrics Dashboard</h1>
+        <p class="lead">Real-time monitoring of satellite payload metrics</p>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0 fs-6">Date Range Filter</h5>
+            </div>
+            <div class="card-body p-2">
+                <form method="get" action="{{ url_for('main.index') }}" class="row g-2">
+                    <div class="col-5">
+                        <label for="date_from" class="form-label mb-0 small">From</label>
+                        <input type="date" class="form-control form-control-sm" id="date_from" name="date_from" value="{{ date_from }}">
+                    </div>
+                    <div class="col-5">
+                        <label for="date_to" class="form-label mb-0 small">To</label>
+                        <input type="date" class="form-control form-control-sm" id="date_to" name="date_to" value="{{ date_to }}">
+                    </div>
+                    <div class="col-2">
+                        <label class="form-label mb-0 small">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary btn-sm w-100">Apply</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Payload Metrics Matrix</h5>
+                <div>
+                    <a href="{{ url_for('main.events') }}" class="btn btn-sm btn-outline-light">View All Events</a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Metric</th>
+                                <th>Threshold</th>
+                                {% for scid, payload_data in dashboard_data.items() %}
+                                <th class="text-center">
+                                    {{ payload_data.name }} ({{ scid }})
+                                </th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for metric_name in metrics %}
+                            <tr>
+                                <td class="fw-bold">{{ metric_name|capitalize }}</td>
+                                <td>{{ metrics[metric_name].threshold }}</td>
+                                {% for scid, payload_data in dashboard_data.items() %}
+                                {% set metric_data = payload_data.metrics.get(metric_name, {}) %}
+                                {% set count = metric_data.get('count', 0) %}
+                                {% set status = metric_data.get('status', 'NORMAL') %}
+                                <td class="text-center {% if status == 'BREACH' %}bg-danger text-white{% else %}bg-success text-white{% endif %} clickable-cell"
+                                    data-scid="{{ scid }}" 
+                                    data-metric="{{ metric_name }}" 
+                                    data-count="{{ count }}"
+                                    data-toggle="modal" 
+                                    data-target="#breachModal">
+                                    {{ count }}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Breach Plot Modal -->
+<div class="modal fade" id="breachModal" tabindex="-1" aria-labelledby="breachModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="breachModalLabel">Breach History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="chart-container" style="position: relative; height:400px; width:100%">
+                            <canvas id="breachHistoryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12 text-center">
+                        <a id="viewEventsLink" href="{{ url_for('main.events') }}" 
+                           data-date-from="{{ date_from }}" 
+                           data-date-to="{{ date_to }}"
+                           class="btn btn-primary">View Full Event History</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">System Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="chart-container" style="position: relative; height:300px; width:100%">
+                            <canvas id="metricsChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="table-responsive">
+                            <table class="table">
+                                <tbody>
+                                    <tr>
+                                        <th>Total Payloads:</th>
+                                        <td>{{ dashboard_data|length }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Metrics Monitored:</th>
+                                        <td>{{ metrics|length }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Refresh Interval:</th>
+                                        <td>10 minutes</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Last Check:</th>
+                                        <td id="lastCheckTime">N/A</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Convert Python data to JavaScript
+        var metricNames = JSON.parse('{{ metrics.keys()|list|tojson }}');
+        
+        // Calculate breach counts for each metric
+        var breachCounts = [];
+        {% for metric_name in metrics.keys() %}
+            var count = 0;
+            {% for scid, payload_data in dashboard_data.items() %}
+                count += {{ payload_data.metrics.get(metric_name, {}).get('count', 0) }};
+            {% endfor %}
+            breachCounts.push(count);
+        {% endfor %}
+        
+        // Create main metrics chart
+        var ctx = document.getElementById('metricsChart').getContext('2d');
+        var metricsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: metricNames.map(function(name) { 
+                    return name.charAt(0).toUpperCase() + name.slice(1);
+                }),
+                datasets: [{
+                    label: 'Breach Count',
+                    data: breachCounts,
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.7)',
+                        'rgba(54, 162, 235, 0.7)',
+                        'rgba(255, 206, 86, 0.7)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        text: 'Breach Count by Metric Type ({{ date_from }} to {{ date_to }})'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Set last check time
+        document.getElementById('lastCheckTime').textContent = new Date().toLocaleString();
+        
+        // Breach history chart (initialized empty)
+        var breachHistoryChart;
+        
+        // Handle cell clicks
+        document.querySelectorAll('.clickable-cell').forEach(function(cell) {
+            cell.addEventListener('click', function() {
+                var scid = this.getAttribute('data-scid');
+                var metric = this.getAttribute('data-metric');
+                var count = this.getAttribute('data-count');
+                
+                // Update modal title
+                document.getElementById('breachModalLabel').textContent = 
+                    metric.charAt(0).toUpperCase() + metric.slice(1) + 
+                    ' Breach History - Payload ' + scid;
+                
+                // Update the link to events page with date filter
+                var eventsLink = document.getElementById('viewEventsLink');
+                var dateFrom = eventsLink.getAttribute('data-date-from');
+                var dateTo = eventsLink.getAttribute('data-date-to');
+                eventsLink.href = eventsLink.href.split('?')[0] + '?scid=' + scid +
+                    '&metric_type=' + metric +
+                    '&date_from=' + dateFrom +
+                    '&date_to=' + dateTo;
+                
+                // Fetch real breach history data with error logging
+                fetch(`/api/breach_history?scid=${scid}&metric_type=${metric}&date_from=${dateFrom}&date_to=${dateTo}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            console.error('API response not ok:', response.status, response.statusText);
+                        }
+                        return response.json();
+                    })
+                    .then(history => {
+                        console.log('Breach history data:', history);
+                        var labels = history.map(item => item.day);
+                        var data = history.map(item => item.count);
+
+                        // Destroy previous chart if it exists and is a Chart instance
+                        if (window.breachHistoryChart && typeof window.breachHistoryChart.destroy === 'function') {
+                            window.breachHistoryChart.destroy();
+                        } else if (window.breachHistoryChart) {
+                            console.warn('breachHistoryChart exists but has no destroy method:', window.breachHistoryChart);
+                        }
+
+                        // Create new breach history chart
+                        var ctxHistory = document.getElementById('breachHistoryChart').getContext('2d');
+                        window.breachHistoryChart = new Chart(ctxHistory, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: 'Daily Breaches',
+                                    data: data,
+                                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                    borderColor: 'rgba(255, 99, 132, 1)',
+                                    borderWidth: 2,
+                                    tension: 0.1,
+                                    fill: true
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: 'Daily Breach History (Last 7 Days)'
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        type: 'time',
+                                        time: {
+                                            unit: 'day',
+                                            displayFormats: {
+                                                day: 'MMM dd'
+                                            }
+                                        },
+                                        title: {
+                                            display: true,
+                                            text: 'Date'
+                                        }
+                                    },
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Breach Count'
+                                        },
+                                        ticks: {
+                                            precision: 0,
+                                            stepSize: 1
+                                        }
+                                    }
+                                }
+                            }
+                        });
+
+                        // Show the modal
+                        var modal = new bootstrap.Modal(document.getElementById('breachModal'));
+                        modal.show();
+                    })
+                    .catch(error => {
+                        console.error('Error fetching or rendering breach history:', error);
+                    });
+            });
+        });
+    });
+</script>
+{% endblock %} 

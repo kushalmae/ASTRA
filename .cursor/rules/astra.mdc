@@ -1,0 +1,70 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Cursor AI Rules ASTRA Automated Satellite Threshold Reporting &amp; Alerts
+
+
+## 🛰️ Purpose
+Build a scalable, config-driven web application that monitors 3 MATLAB-based metrics for a constellation of 10 satellite payloads. When a threshold is breached, the system logs it in a database and displays real-time insights through a Flask-based dashboard.
+
+## Scalable  
+- must be scalable 
+- No external hosting or CI/CD setup required.
+- Must run locally on any developer machine via `python app.py`.
+---
+
+## 🧱 Architecture Guidelines
+
+### Backend (Python)
+- Use Python 3.11+
+- Trigger MATLAB scripts via `subprocess` or MATLAB Engine API
+- Parse and validate MATLAB outputs: `{timestamp, scid, metric_type, value}`
+- Store breaches in SQLite database
+- Read all metric names and thresholds from a single JSON/YAML config file
+- Dynamically create database schema based on config at app startup
+
+### Frontend
+ - Use Flask + Jinja2 for UI rendering.
+  - Use Flask-Bootstrap or any Python-compatible UI kit for styling.
+  - No React, Vue, or JS-heavy frameworks.
+- Rollup view:
+  - Display total breaches per metric for each payload (SCID).
+  - Use color-coded indicators (e.g., red = breached).
+- Event table:
+  - Columns: Timestamp, SCID, Metric Type, Value, Threshold.
+  - Enable sorting and filtering by all columns.
+  - Pagination required for >100 rows.
+- Client-side should be minimal JS or JS-free.
+
+### Database (SQLite)
+- Use SQLite for lightweight, embedded storage
+- Create table on first run if not exists: `metric_triggers`
+- Table schema:
+  - `id` (PK, INT)
+  - `scid` (INT)
+  - `metric_type` (TEXT)
+  - `timestamp` (DATETIME)
+  - `value` (FLOAT)
+  - `threshold` (FLOAT)
+  - `status` (TEXT: 'NORMAL' | 'BREACH')
+
+### Configuration
+- Store thresholds and monitored metrics in `config/metrics_config.json`
+- Example format:
+```json
+{
+  "metrics": {
+    "thermal": {"threshold": 75},
+    "voltage": {"threshold": 3.3},
+    "latency": {"threshold": 250}
+  }
+}
+
+
+
+
+
+
+
