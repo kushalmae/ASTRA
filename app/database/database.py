@@ -1,11 +1,9 @@
 import os
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, scoped_session
-from contextlib import contextmanager
 from sqlalchemy.exc import SQLAlchemyError
 import datetime
 import sqlalchemy
-
 from app.config import Config
 from app.database.base import Base
 from app.utils import get_logger

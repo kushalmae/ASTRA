@@ -49,10 +49,10 @@ os.makedirs("data", exist_ok=True)
 os.makedirs("matlab_scripts", exist_ok=True)
 
 # Check if we're in simulation mode
-use_simulation = os.getenv("USE_SIMULATION", "False").lower() in ("true", "1", "yes")
+use_simulation = config.is_simulation_mode()
 if use_simulation:
     logger.info("*** USING SIMULATION MODE - NO REAL MATLAB SCRIPTS WILL BE EXECUTED ***")
-    logger.info("    (Set USE_SIMULATION=False in .env file to use real MATLAB)")
+    logger.info("    (Set USE_SIMULATION=False in config/metrics_config.json file to use real MATLAB)")
 else:
     logger.info("MATLAB integration enabled - will attempt to execute MATLAB scripts if present")
 

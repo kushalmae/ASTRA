@@ -60,7 +60,7 @@ CopyEdit
 
 - SQLite used as local store
 - Schema auto-generated at runtime based on config
-- **Table:** metric_triggers
+- **Table:** s
   - id (PK)
   - scid (int)
   - metric_type (string)

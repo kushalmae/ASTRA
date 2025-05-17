@@ -40,7 +40,6 @@ Build a scalable, config-driven web application that monitors 3 MATLAB-based met
 
 ### Database (SQLite)
 - Use SQLite for lightweight, embedded storage
-- Create table on first run if not exists: `metric_triggers`
 - Table schema:
   - `id` (PK, INT)
   - `scid` (INT)

@@ -16,5 +16,15 @@
     {"scid": 108, "name": "Payload 8"},
     {"scid": 109, "name": "Payload 9"},
     {"scid": 110, "name": "Payload 10"}
-  ]
+  ],
+  "environment": {
+    "FLASK_ENV": "development",
+    "DATABASE_PATH": "./data/astra.db",
+    "SECRET_KEY": "astra-default-secret-key",
+    "LOG_LEVEL": "INFO",
+    "USE_SIMULATION": "False",
+    "LOGGING_ENABLED": "True",
+    "MATLAB_SCRIPTS_PATH": "./matlab_scripts",
+    "REFRESH_INTERVAL": "600"
+  }
 } 

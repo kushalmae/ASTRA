@@ -10,6 +10,7 @@ for env_file in ['.env', 'env', '../.env', '../env']:
         break
 
 class Config:
+    ## GET The Json File Variables
     def __init__(self, config_path="config/metrics_config.json"):
         """Initialize the configuration loader."""
         self.config_path = config_path
@@ -23,18 +24,7 @@ class Config:
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Error loading configuration: {e}")
             # Return a default configuration if the file doesn't exist or is invalid
-            return {
-                "metrics": {
-                    "thermal": {"threshold": 75.0},
-                    "voltage": {"threshold": 3.3},
-                    "latency": {"threshold": 250}
-                },
-                "payloads": [
-                    {"scid": 101, "name": "Payload 1"},
-                    {"scid": 102, "name": "Payload 2"},
-                    {"scid": 103, "name": "Payload 3"}
-                ]
-            }
+            return {}
     
     def get_metrics(self):
         """Get the metrics configuration."""
@@ -50,23 +40,28 @@ class Config:
         metric = metrics.get(metric_type, {})
         return metric.get("threshold", 0)
     
+    def get_environment(self, key, default=None):
+        """Get a value from the environment configuration in the JSON file. """
+        env_config = self.config.get("environment", {})
+        # First try the JSON config
+        if key in env_config:
+            return env_config[key]
+    
     def get_matlab_scripts_path(self):
-        """Get the path to MATLAB scripts from environment variables."""
-        return os.getenv("MATLAB_SCRIPTS_PATH", "./matlab_scripts")
+        """Get the path to MATLAB scripts from configuration."""
+        return self.get_environment("MATLAB_SCRIPTS_PATH", "./matlab_scripts")
     
     def get_refresh_interval(self):
-        """Get the refresh interval from environment variables."""
-        try:
-            return int(os.getenv("REFRESH_INTERVAL", "600"))
-        except ValueError:
-            return 600
+        """Get the refresh interval from configuration."""
+        interval = self.get_environment("REFRESH_INTERVAL", "600")
+        return int(interval)
     
     def get_database_path(self):
-        """Get the database path from environment variables."""
-        return os.getenv("DATABASE_PATH", "./data/astra.db")
+        """Get the database path from configuration."""
+        return self.get_environment("DATABASE_PATH", "./data/astra.db")
         
     def is_logging_enabled(self):
-        """Determine if logging is enabled from environment variables.
+        """Determine if logging is enabled from configuration.
         
         This can be used to disable all logging in the application by setting
         the LOGGING_ENABLED environment variable to 'False', '0', or 'no'.
@@ -74,4 +69,14 @@ class Config:
         Returns:
             bool: True if logging is enabled, False otherwise.
         """
-        return os.getenv("LOGGING_ENABLED", "True").lower() not in ("false", "0", "no") 
+        value = self.get_environment("LOGGING_ENABLED", "True").lower()
+        return value not in ("false", "0", "no")
+        
+    def is_simulation_mode(self):
+        """Determine if simulation mode is enabled from configuration.
+        
+        Returns:
+            bool: True if simulation mode is enabled, False otherwise.
+        """
+        value = self.get_environment("USE_SIMULATION", "False").lower()
+        return value in ("true", "1", "yes") 

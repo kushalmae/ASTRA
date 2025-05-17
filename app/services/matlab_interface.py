@@ -19,7 +19,7 @@ class MatlabInterface:
         """Initialize MATLAB interface."""
         self.config = config or Config()
         self.matlab_path = self.config.get_matlab_scripts_path()
-        self.use_simulation = os.getenv("USE_SIMULATION", "False").lower() in ("true", "1", "yes")
+        self.use_simulation = self.config.is_simulation_mode()
         os.makedirs(self.matlab_path, exist_ok=True)
         self.engine = None
         self.initialized = False
