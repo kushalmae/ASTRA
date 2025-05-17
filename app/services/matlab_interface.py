@@ -20,34 +20,11 @@ class MatlabInterface:
         self.config = config or Config()
         self.matlab_path = self.config.get_matlab_scripts_path()
         self.use_simulation = self.config.is_simulation_mode()
+        logger.info("use_simulation: " + str(self.use_simulation))
         os.makedirs(self.matlab_path, exist_ok=True)
         self.engine = None
-        self.initialized = False
-    
-    def start_engine(self):
-        """Start MATLAB engine."""
-        try:
-            if not self.initialized:
-                logger.info("Starting MATLAB engine...")
-                self.engine = matlab.engine.start_matlab()
-                self.initialized = True
-                logger.info("MATLAB engine started successfully")
-        except Exception as e:
-            logger.error(f"Failed to start MATLAB engine: {str(e)}", exc_info=True)
-            raise
-    
-    def stop_engine(self):
-        """Stop MATLAB engine."""
-        try:
-            if self.initialized and self.engine:
-                logger.info("Stopping MATLAB engine...")
-                self.engine.quit()
-                self.initialized = False
-                logger.info("MATLAB engine stopped successfully")
-        except Exception as e:
-            logger.error(f"Failed to stop MATLAB engine: {str(e)}", exc_info=True)
-            raise
-    
+        self.initialized = False    
+  
     def run_script(self, script_name, payload_id=None):
         """Run a MATLAB script.
         
@@ -69,11 +46,12 @@ class MatlabInterface:
             
             # Run the MATLAB script
             cmd = ["matlab", "-batch", f"run('{script_path}')"]
+            logger.info("cmd: " + str(cmd))
             if payload_id:
                 cmd.extend(["-payload", payload_id])
             
             result = subprocess.run(cmd, capture_output=True, text=True)
-            
+           
             if result.returncode != 0:
                 raise RuntimeError(f"Script execution failed: {result.stderr}")
             
@@ -139,62 +117,11 @@ class MatlabInterface:
                 except Exception as e:
                     logger.error(f"Error monitoring metric {metric_type}: {str(e)}")
                     continue
-            
             return results
         except Exception as e:
             logger.error(f"Error monitoring metrics: {str(e)}", exc_info=True)
             raise
     
-    def run_monitoring_metrics(self, scid, metric_type, value):
-        """Run monitoring metrics in MATLAB.
-        
-        Args:
-            scid (str): Spacecraft ID
-            metric_type (str): Type of metric to monitor
-            value (float): Current value of the metric
-            
-        Returns:
-            dict: Monitoring results including threshold and status
-        """
-        try:
-            if not self.initialized:
-                self.start_engine()
-            
-            # Call MATLAB function to process metrics
-            # Note: You'll need to implement the actual MATLAB function
-            result = self.engine.process_metrics(scid, metric_type, value)
-            
-            return {
-                'threshold': float(result['threshold']),
-                'status': str(result['status'])
-            }
-        except Exception as e:
-            logger.error(f"Error running monitoring metrics: {str(e)}", exc_info=True)
-            raise
-    
-    def get_metric_threshold(self, scid, metric_type):
-        """Get threshold for a specific metric.
-        
-        Args:
-            scid (str): Spacecraft ID
-            metric_type (str): Type of metric
-            
-        Returns:
-            float: Threshold value for the metric
-        """
-        try:
-            if not self.initialized:
-                self.start_engine()
-            
-            # Call MATLAB function to get threshold
-            # Note: You'll need to implement the actual MATLAB function
-            threshold = self.engine.get_threshold(scid, metric_type)
-            
-            return float(threshold)
-        except Exception as e:
-            logger.error(f"Error getting metric threshold: {str(e)}", exc_info=True)
-            raise
-
 # Create a singleton instance
 matlab_interface = MatlabInterface()
 
